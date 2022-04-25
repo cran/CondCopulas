@@ -11,20 +11,22 @@ CKT.hCV.l1out(
   observedX2,
   observedZ,
   range_h,
-  matrixSignsPairs,
+  matrixSignsPairs = NULL,
   nPairs = 10 * length(observedX1),
-  typeEstCKT = 4,
+  typeEstCKT = "wdm",
   kernel.name = "Epa",
   progressBar = TRUE,
   verbose = FALSE
 )
 
 CKT.hCV.Kfolds(
-  range_h,
-  matrixSignsPairs,
+  observedX1,
+  observedX2,
   observedZ,
   ZToEstimate,
-  typeEstCKT = 4,
+  range_h,
+  matrixSignsPairs = NULL,
+  typeEstCKT = "wdm",
   kernel.name = "Epa",
   Kfolds = 5,
   progressBar = TRUE,
@@ -43,7 +45,8 @@ to the observations of Z}
 \item{range_h}{vector containing possible values for the bandwidth.}
 
 \item{matrixSignsPairs}{square matrix of signs of all pairs,
-produced by \code{\link{computeMatrixSignPairs}}.}
+produced by \code{\link{computeMatrixSignPairs}(observedX1, observedX2)}.
+Only needed if \code{typeEstCKT} is not the default 'wdm'.}
 
 \item{nPairs}{number of pairs used in the cross-validation criteria.}
 
@@ -100,7 +103,7 @@ These functions aims at finding the best bandwidth \code{h} among a given
 \examples{
 # We simulate from a conditional copula
 set.seed(1)
-N = 300
+N = 200
 Z = rnorm(n = N, mean = 5, sd = 2)
 conditionalTau = -0.9 + 1.8 * pnorm(Z, mean = 5, sd = 2)
 simCopula = VineCopula::BiCopSim(N=N , family = 1,
@@ -110,9 +113,13 @@ X2 = qnorm(simCopula[,2])
 
 newZ = seq(2,10,by = 0.1)
 range_h = 3:10
-matrixSignsPairs = computeMatrixSignPairs(vectorX1 = X1, vectorX2 = X2)
-resultCV <- CKT.hCV.Kfolds(range_h = range_h,
-  matrixSignsPairs = matrixSignsPairs, observedZ = Z, ZToEstimate = newZ)
+
+resultCV <- CKT.hCV.l1out(observedX1 = X1, observedX2 = X2,
+  range_h = range_h, observedZ = Z, nPairs = 100)
+
+resultCV <- CKT.hCV.Kfolds(observedX1 = X1, observedX2 = X2,
+  range_h = range_h, observedZ = Z, ZToEstimate = newZ)
+
 plot(range_h, resultCV$scores, type = "b")
 
 }

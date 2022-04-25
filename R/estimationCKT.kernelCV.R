@@ -38,7 +38,8 @@
 #' @param range_h vector containing possible values for the bandwidth.
 #'
 #' @param matrixSignsPairs square matrix of signs of all pairs,
-#' produced by \code{\link{computeMatrixSignPairs}}.
+#' produced by \code{\link{computeMatrixSignPairs}(observedX1, observedX2)}.
+#' Only needed if \code{typeEstCKT} is not the default 'wdm'.
 #'
 #' @param nPairs number of pairs used in the cross-validation criteria.
 #'
@@ -76,7 +77,7 @@
 #' @examples
 #' # We simulate from a conditional copula
 #' set.seed(1)
-#' N = 300
+#' N = 200
 #' Z = rnorm(n = N, mean = 5, sd = 2)
 #' conditionalTau = -0.9 + 1.8 * pnorm(Z, mean = 5, sd = 2)
 #' simCopula = VineCopula::BiCopSim(N=N , family = 1,
@@ -86,17 +87,21 @@
 #'
 #' newZ = seq(2,10,by = 0.1)
 #' range_h = 3:10
-#' matrixSignsPairs = computeMatrixSignPairs(vectorX1 = X1, vectorX2 = X2)
-#' resultCV <- CKT.hCV.Kfolds(range_h = range_h,
-#'   matrixSignsPairs = matrixSignsPairs, observedZ = Z, ZToEstimate = newZ)
+#'
+#' resultCV <- CKT.hCV.l1out(observedX1 = X1, observedX2 = X2,
+#'   range_h = range_h, observedZ = Z, nPairs = 100)
+#'
+#' resultCV <- CKT.hCV.Kfolds(observedX1 = X1, observedX2 = X2,
+#'   range_h = range_h, observedZ = Z, ZToEstimate = newZ)
+#'
 #' plot(range_h, resultCV$scores, type = "b")
 #'
 #' @export
 #'
 CKT.hCV.l1out <- function (observedX1, observedX2, observedZ,
-                           range_h, matrixSignsPairs,
+                           range_h, matrixSignsPairs = NULL,
                            nPairs = 10*length(observedX1),
-                           typeEstCKT = 4, kernel.name = "Epa",
+                           typeEstCKT = "wdm", kernel.name = "Epa",
                            progressBar = TRUE, verbose = FALSE)
 {
   n_h = length(range_h)
@@ -114,20 +119,22 @@ CKT.hCV.l1out <- function (observedX1, observedX2, observedZ,
 
   if (is.vector(observedZ)){
     computeScore <- function(i, i_h, h){
+      toBeRemoved = - c(dataMatrix[i,4], dataMatrix[i,5])
       matrixScore[i, i_h] <<- CKT.kernelPointwise.univariate(
-        matrixSignsPairs = matrixSignsPairs[-c(dataMatrix[i,4], dataMatrix[i,5]) ,
-                                            -c(dataMatrix[i,4], dataMatrix[i,5])],
-        vectorZ = observedZ[-c(dataMatrix[i,4], dataMatrix[i,5])],
+        X1 = observedX1[toBeRemoved], X2 = observedX2[toBeRemoved],
+        matrixSignsPairs = matrixSignsPairs[toBeRemoved , toBeRemoved],
+        vectorZ = observedZ[toBeRemoved],
         h = h, pointZ = dataMatrix[i,2],
         kernel.name = kernel.name, typeEstCKT = typeEstCKT)
     }
   } else {
     dimZ = ncol(observedZ)
     computeScore <- function(i, i_h, h){
+      toBeRemoved = - c(dataMatrix[i,4], dataMatrix[i,5])
       matrixScore[i, i_h] <<- CKT.kernelPointwise.multivariate(
-        matrixSignsPairs = matrixSignsPairs[-c(dataMatrix[i,4], dataMatrix[i,5]) ,
-                                            -c(dataMatrix[i,4], dataMatrix[i,5])],
-        matrixZ = observedZ[-c(dataMatrix[i,4], dataMatrix[i,5])],
+        X1 = observedX1[toBeRemoved], X2 = observedX2[toBeRemoved],
+        matrixSignsPairs = matrixSignsPairs[toBeRemoved , toBeRemoved],
+        matrixZ = observedZ[toBeRemoved, ],
         h = h, pointZ = dataMatrix[i,1+1:dimZ],
         kernel.name = kernel.name, typeEstCKT = typeEstCKT)
     }
@@ -166,8 +173,9 @@ CKT.hCV.l1out <- function (observedX1, observedX2, observedZ,
 #' @rdname CKT.hCV.l1out
 #' @export
 #'
-CKT.hCV.Kfolds <- function(range_h, matrixSignsPairs, observedZ, ZToEstimate,
-                           typeEstCKT = 4, kernel.name = "Epa",
+CKT.hCV.Kfolds <- function(observedX1, observedX2, observedZ, ZToEstimate,
+                           range_h, matrixSignsPairs = NULL,
+                           typeEstCKT = "wdm", kernel.name = "Epa",
                            Kfolds = 5, progressBar = TRUE, verbose = FALSE)
 {
   n_h = length(range_h)
@@ -193,11 +201,13 @@ CKT.hCV.Kfolds <- function(range_h, matrixSignsPairs, observedZ, ZToEstimate,
     for (i in seq(Kfolds)) {
       which = foldid == i
       list_vectorEstimate[[i]] = estimCKTNP(
+        X1 = observedX1[!which], X2 = observedX2[!which],
         matrixSignsPairs = matrixSignsPairs[!which, !which],
         observedZ = observedZ[!which,], ZToEstimate = ZToEstimate,
         typeEstCKT = typeEstCKT, h = h, kernel.name = kernel.name, progressBar = FALSE)
 
       list_vectorEstimate_comp[[i]] = estimCKTNP(
+        X1 = observedX1[which], X2 = observedX2[which],
         matrixSignsPairs = matrixSignsPairs[which, which],
         observedZ = observedZ[which,], ZToEstimate = ZToEstimate,
         typeEstCKT = typeEstCKT, h = h, kernel.name = kernel.name, progressBar = FALSE)

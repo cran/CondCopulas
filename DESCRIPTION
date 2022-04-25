@@ -1,7 +1,7 @@
 Package: CondCopulas
 Type: Package
 Title: Estimation and Inference for Conditional Copula Models
-Version: 0.1.1
+Version: 0.1.2
 Authors@R: c(
     person("Alexis", "Derumigny", , email = "a.f.f.derumigny@tudelft.nl", role = c("aut", "cre"), comment = c(ORCID = "0000-0002-6163-8097")),
     person("Jean-David", "Fermanian", , email = "Jean-David.Fermanian@ensae.fr", role = c("ctb","ths"), comment = c(ORCID = "0000-0001-5960-5555")),
@@ -21,12 +21,12 @@ Encoding: UTF-8
 RoxygenNote: 7.1.2
 Suggests: MASS, knitr, rmarkdown, ggplot2, mvtnorm
 Imports: VineCopula, pbapply, glmnet, ordinalNet, tree, nnet,
-        data.tree, statmod, pcaPP
+        data.tree, statmod, wdm
 VignetteBuilder: knitr
 BugReports: https://github.com/AlexisDerumigny/CondCopulas/issues
 URL: https://github.com/AlexisDerumigny/CondCopulas
 NeedsCompilation: no
-Packaged: 2022-03-30 08:32:29 UTC; Alexis
+Packaged: 2022-04-25 10:08:22 UTC; Alexis
 Author: Alexis Derumigny [aut, cre] (<https://orcid.org/0000-0002-6163-8097>),
   Jean-David Fermanian [ctb, ths]
     (<https://orcid.org/0000-0001-5960-5555>),
@@ -34,4 +34,4 @@ Author: Alexis Derumigny [aut, cre] (<https://orcid.org/0000-0002-6163-8097>),
   Rutger van der Spek [ctb]
 Maintainer: Alexis Derumigny <a.f.f.derumigny@tudelft.nl>
 Repository: CRAN
-Date/Publication: 2022-03-30 17:50:09 UTC
+Date/Publication: 2022-04-25 10:50:02 UTC
