@@ -10,12 +10,22 @@ simpA.kendallReg(
   X2,
   Z,
   vectorZToEstimate = NULL,
-  listPhi = list(function(x) {     return(x) }, function(x) {     return(x^2) },
-    function(x) {     return(x^3) }),
+  listPhi = list(function(x) {
+     return(x)
+ }, function(x) {
+     return(x^2)
+ },
+    function(x) {
+     return(x^3)
+ }),
   typeEstCKT = 4,
   h_kernel,
-  Lambda = function(x) {     return(x) },
-  Lambda_deriv = function(x) {     return(1) },
+  Lambda = function(x) {
+     return(x)
+ },
+  Lambda_deriv = function(x) {
+     return(1)
+ },
   lambda = NULL,
   h_lambda = h_kernel,
   Kfolds_lambda = 5,
@@ -50,7 +60,7 @@ By default, cross-validation is used to find the best value of \code{lambda}.}
 \item{h_lambda}{bandwidth used for the smooth cross-validation
 in order to get a value for \code{lambda}.}
 
-\item{Kfolds_lambda}{the number of subsests used for the cross-validation
+\item{Kfolds_lambda}{the number of subsets used for the cross-validation
 in order to get a value for \code{lambda}.}
 
 \item{l_norm}{type of norm used for selection of the optimal lambda

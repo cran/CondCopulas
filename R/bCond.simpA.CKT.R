@@ -53,10 +53,16 @@
 #' if \code{methodPvalue} is not \code{covMatrix}.
 #' }
 #'
-#' @references Derumigny, A., Fermanian, J. D., & Min, A. (2020).
+#' @references Derumigny, A., Fermanian, J. D., & Min, A. (2022).
 #' Testing for equality between conditional copulas
 #' given discretized conditioning events.
-#' ArXiv preprint \href{https://arxiv.org/abs/2008.09498}{arxiv:2008.09498}.
+#' Canadian Journal of Statistics.
+#' \doi{10.1002/cjs.11742}
+#'
+#' Derumigny, A., & Fermanian, J. D. (2022)
+#' Conditional empirical copula processes and generalized dependence measures
+#' Electronic Journal of Statistics, 16(2), 5692-5719.
+#' \doi{10.1214/22-EJS2075}
 #'
 #'
 #' @seealso \code{\link{bCond.simpA.param}} for a test of this simplifying assumption
@@ -80,6 +86,24 @@
 #'
 #' @author Alexis Derumigny, Jean-David Fermanian and Aleksey Min
 #'
+#'
+#' @examples
+#' set.seed(1)
+#' n = 200
+#' XJ = MASS::mvrnorm(n = n, mu = c(3,3), Sigma = rbind(c(1, 0.2), c(0.2, 1)))
+#' XI = matrix(nrow = n, ncol = 2)
+#' high_XJ1 = which(XJ[,1] > 4)
+#' XI[high_XJ1, ]  = MASS::mvrnorm(n = length(high_XJ1), mu = c(10,10),
+#'                                 Sigma = rbind(c(1, 0.8), c(0.8, 1)))
+#' XI[-high_XJ1, ] = MASS::mvrnorm(n = n - length(high_XJ1), mu = c(8,8),
+#'                                 Sigma = rbind(c(1, -0.2), c(-0.2, 1)))
+#'
+#' result = bCond.simpA.CKT(XI = XI, XJ = XJ, minSize = 10, verbose = 2,
+#'                          methodTree = "doSplit", nBootstrap = 4)
+#' print(result$p.value)
+#' result2 = bCond.simpA.CKT(XI = XI, XJ = XJ, minSize = 10, verbose = 2,
+#'                           methodTree = "noSplit", nBootstrap = 4)
+#' print(result2$p.value)
 #'
 #'
 #' @export
@@ -114,7 +138,7 @@ bCond.simpA.CKT <- function(XI, XJ = NULL, matrixInd = NULL,
       XItree = XI[sampleForTree, ]
       XJtree = data.frame(XJ[sampleForTree, ])
 
-      bCond.treeCKT = bCond.treeCKT(
+      treeCKT = bCond.treeCKT(
         XI = XItree, XJ = XJtree,
         minCut = minCut, minSize = minSize, minProb = minProb,
         nPoints_xJ = nPoints_xJ, type.quantile = type.quantile,
@@ -127,7 +151,7 @@ bCond.simpA.CKT <- function(XI, XJ = NULL, matrixInd = NULL,
       XIstat = XI
       XJstat = NULL
 
-      bCond.treeCKT = bCond.treeCKT(
+      treeCKT = bCond.treeCKT(
         XI = XI, XJ = XJ,
         minCut = minCut, minSize = minSize, minProb = minProb,
         nPoints_xJ = nPoints_xJ, type.quantile = type.quantile,
