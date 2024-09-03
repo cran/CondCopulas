@@ -36,8 +36,11 @@
 #'
 #' @param Lambda_deriv the derivative of the function \code{Lambda}.
 #'
+#' @param Lambda_inv the inverse function of \code{Lambda}.
+#'
 #' @param lambda the penalization parameter used for Kendall's regression.
-#' By default, cross-validation is used to find the best value of \code{lambda}.
+#' By default, cross-validation is used to find the best value of \code{lambda}
+#' if \code{length(listPhi) > 1}. Otherwise \code{lambda = 0} is used.
 #'
 #' @param h_lambda bandwidth used for the smooth cross-validation
 #' in order to get a value for \code{lambda}.
@@ -51,12 +54,46 @@
 #' conditional Kendall's tau while \code{l_norm=2} corresponds to
 #' the sum of squares of differences.
 #'
+#' @param object,x an \code{S3} object of class \code{simpA_kendallReg_test}.
 #'
-#' @return a list containing
+#' @param ylim graphical parameter, see \link{plot}
+#'
+#' @param ... other arguments, unused
+#'
+#' @return \code{simpA.kendallReg} returns an \code{S3} object of
+#' class \code{simpA_kendallReg_test}, containing
 #' \itemize{
 #'     \item \code{statWn}: the value of the test statistic.
 #'     \item \code{p_val}: the p-value of the test.
 #' }
+#'
+#' \code{plot.simpA_kendallReg_test} returns (invisibly) a matrix with columns
+#' \code{z}, \code{est_CKT_NP}, \code{asympt_se_np}, \code{est_CKT_NP_q025},
+#' \code{est_CKT_NP_q975}, \code{est_CKT_reg}, \code{asympt_se_reg},
+#' \code{est_CKT_reg_q025}, \code{est_CKT_reg_q975}.
+#' The first column correspond to the grid of values of z. The next 4 columns
+#' are the NP (kernel-based) estimator of conditional Kendall's tau, with its
+#' standard error, and lower/upper confidence bands. The last 4 columns are the
+#' equivalents for the estimator based on Kendall's regression.
+#'
+#' \code{plot.simpA_kendallReg_test} plots the kernel-based estimator and its
+#' confidence band (in red), and the estimator based on Kendall's regression
+#' and its confidence band (in blue).
+#'
+#' Usually the confidence band for Kendall's regression is much tighter than the
+#' pure non-parametric counterpart. This is because the parametric model is
+#' sparser and the corresponding estimator converges faster (even without
+#' penalization).
+#'
+#' \code{print.simpA_kendallReg_test} has no return values and is only called
+#' for its side effects.
+#'
+#' Function \code{coef.simpA_kendallReg_test} returns the matrix of coefficients
+#' with standard errors, z values and p-values.
+#'
+#' Function \code{vcov.simpA_kendallReg_test} returns the (estimated)
+#' variance-covariance matrix of the estimated coefficients.
+#'
 #'
 #' @references
 #' Derumigny, A., & Fermanian, J. D. (2020).
@@ -87,7 +124,7 @@
 #' @examples
 #'
 #' \donttest{
-#' # We simulate from a conditional copula
+#' # We simulate from a non-simplified conditional copula
 #' set.seed(1)
 #' N = 300
 #' Z = runif(n = N, min = 0, max = 1)
@@ -98,17 +135,27 @@
 #' X2 = qnorm(simCopula[,2])
 #'
 #' result = simpA.kendallReg(
+#'   X1, X2, Z, h_kernel = 0.03,
+#'   listPhi = list(z = function(z){return(z)} ) )
+#' print(result)
+#' plot(result)
+#' # Obtain matrix of coefficients, std err, z values and p values
+#' coef(result)
+#' # Obtain variance-covariance matrix of the coefficients
+#' vcov(result)
+#'
+#' result_morePhi = simpA.kendallReg(
 #'    X1, X2, Z, h_kernel = 0.03,
 #'    listPhi = list(
-#'      function(x){return(x)}, function(x){return(x^2)},
-#'      function(x){return(x^3)}, function(x){return(x^4)},
-#'      function(x){return(x^5)},
-#'      function(x){return(cos(x))}, function(x){return(sin(x))},
-#'      function(x){return(as.numeric(x <= 0.4))},
-#'      function(x){return(as.numeric(x <= 0.6))}) )
-#' print(result$p_val)
+#'      z = function(z){return(z)},
+#'      cos10z = function(z){return(cos(10 * z))},
+#'      sin10z = function(z){return(sin(10 * z))},
+#'      `1(z <= 0.4)` = function(z){return(as.numeric(z <= 0.4))},
+#'      `1(z <= 0.6)` = function(z){return(as.numeric(z <= 0.6))}) )
+#' print(result_morePhi)
+#' plot(result_morePhi)
 #'
-#' # We simulate from a conditional copula
+#' # We simulate from a simplified conditional copula
 #' set.seed(1)
 #' N = 300
 #' Z = runif(n = N, min = 0, max = 1)
@@ -121,29 +168,42 @@
 #' result = simpA.kendallReg(
 #'    X1, X2, Z, h_kernel = 0.03,
 #'    listPhi = list(
-#'      function(x){return(x)}, function(x){return(x^2)},
-#'      function(x){return(x^3)}, function(x){return(x^4)},
-#'      function(x){return(x^5)},
-#'      function(x){return(cos(x))}, function(x){return(sin(x))},
-#'      function(x){return(as.numeric(x <= 0.4))},
-#'      function(x){return(as.numeric(x <= 0.6))}) )
-#' print(result$p_val)
+#'      z = function(z){return(z)},
+#'      cos10z = function(z){return(cos(10 * z))},
+#'      sin10z = function(z){return(sin(10 * z))},
+#'      `1(z <= 0.4)` = function(z){return(as.numeric(z <= 0.4))},
+#'      `1(z <= 0.6)` = function(z){return(as.numeric(z <= 0.6))}) )
+#' print(result)
+#' plot(result)
 #' }
 #'
 #' @export
 #'
 simpA.kendallReg <- function(
-  X1, X2, Z,
-  vectorZToEstimate = NULL,
-  listPhi = list(function(x){return(x)}, function(x){return(x^2)},
-                 function(x){return(x^3)}),
-  typeEstCKT = 4,
-  h_kernel,
-  Lambda = function(x){return(x)}, Lambda_deriv = function(x){return(1)},
-  lambda = NULL, h_lambda = h_kernel,
-  Kfolds_lambda = 5, l_norm = 1
+    X1, X2, Z,
+    vectorZToEstimate = NULL,
+    listPhi = list(z = function(z){return(z)}),
+    typeEstCKT = 4,
+    h_kernel,
+    Lambda = function(x){return(x)},
+    Lambda_deriv = function(x){return(1)},
+    Lambda_inv = function(x){return(x)},
+    lambda = NULL, h_lambda = h_kernel,
+    Kfolds_lambda = 5, l_norm = 1
 )
 {
+  .checkSame_nobs_X1X2Z(X1, X2, Z)
+
+  .checkUnivX1X2(X1, X2)
+  X1 = as.numeric(X1)
+  X2 = as.numeric(X2)
+
+  if (NCOL(Z) > 1){
+    stop("'simpA.kendallReg' is currently only implemented for univariate Z")
+  }
+  Z = as.numeric(Z)
+
+  n = length(X1)
   if (is.null(vectorZToEstimate)){
     nprime = 100
     vectorZToEstimate = computeVectorZToEstimate(
@@ -156,64 +216,242 @@ simpA.kendallReg <- function(
   # Computation of the \hat \tau_{1,2 | \Z = \Z'_i}
   vectorEstimate_1step = CKT.kernel.univariate(
     matrixSignsPairs = matrixSignsPairs ,
-    observedZ = Z ,
+    Z = Z ,
     h = h_kernel ,
     ZToEstimate = vectorZToEstimate ,
     kernel.name = "Epa" ,
-    typeEstCKT = typeEstCKT )
+    typeEstCKT = typeEstCKT,
+    progressBar = 0)
 
-  # Computation of the matrix \Zb of the \psibm(Z'_i)
-  designMatrixZ =
-    sapply(listPhi,
-           function(x) sapply(vectorZToEstimate, x))
+  LambdaCKT = Lambda(vectorEstimate_1step)
 
-  # Computation of \hat \beta
-  whichFinite = which( is.finite(vectorEstimate_1step))
+  whichFinite = which( is.finite(LambdaCKT))
   if (is.null(whichFinite)) {
     stop("No kernel estimation successful. ",
          "Maybe h_kernel is too small?")
   }
-  resultEstimation = glmnet::glmnet(x = designMatrixZ[whichFinite, ],
-                                    y = Lambda(vectorEstimate_1step[whichFinite]),
-                                    family = "gaussian")
 
-  if (is.null(lambda)){
-    # Computation of \lambda chosen by cross-validation
-    resultCV = CKT.KendallReg.LambdaCV(
-      observedX1 = X1, observedX2 = X2,
-      observedZ = Z, ZToEstimate = vectorZToEstimate,
-      designMatrixZ = designMatrixZ,
-      typeEstCKT = typeEstCKT,
-      h_lambda = h_lambda, Lambda = Lambda, kernel.name = "Epa",
-      Kfolds_lambda = Kfolds_lambda, l_norm = l_norm)
+  # To compute \hat \beta,
+  # we first prepare the design matrix and the penalization parameter lambda
 
-    lambda = resultCV$lambdaCV
+  # Computation of the design matrix \Zb by applying each phi to Z'_i
+  designMatrixZ = sapply(listPhi,
+                         function(phi) {phi(vectorZToEstimate)},
+                         simplify = "array")
+
+  designMatrix_withIntercept = cbind(1 , designMatrixZ)
+  if (is.null(names(listPhi))){
+    coefNames = c("Intercept", paste0("phi", 1:length(listPhi)))
+  } else {
+    coefNames = c("Intercept", names(listPhi))
+  }
+  colnames(designMatrix_withIntercept) <- coefNames
+
+  # Choice of lambda
+  if (length(listPhi) == 1){
+    if (!is.null(lambda)){
+      if (lambda != 0){
+        warning(paste0("There is only one function 'phi' provided. ",
+                       "Therefore the penalization parameter lambda is set to 0."))
+      }
+    }
+    lambda = 0
+  } else {
+
+    # Choice of lambda by cross-validation if it is `NULL`
+    if (is.null(lambda)){
+      # Computation of \lambda chosen by cross-validation
+      resultCV = CKT.KendallReg.LambdaCV(
+        observedX1 = X1, observedX2 = X2,
+        observedZ = Z, ZToEstimate = vectorZToEstimate,
+        designMatrixZ = designMatrixZ,
+        typeEstCKT = typeEstCKT,
+        h_lambda = h_lambda, Lambda = Lambda, kernel.name = "Epa",
+        Kfolds_lambda = Kfolds_lambda, l_norm = l_norm)
+
+      lambda = resultCV$lambdaCV
+    }
   }
 
-  # Using Wn
-  progressBar = TRUE #### TODO : manage the progressbars
 
-  resultWn = computeWn(vectorZ = Z,
-                       vectorZToEstimate = vectorZToEstimate[whichFinite],
-                       vector_hat_CKT_NP = vectorEstimate_1step[whichFinite],
-                       vector_hat_beta = stats::coef(resultEstimation ,
-                                                     s = lambda),
-                       matrixSignsPairs = matrixSignsPairs,
-                       inputMatrix = designMatrixZ[whichFinite, ],
-                       h = h_kernel,
-                       kernel.name = "Epa",
-                       intK2 = 3/5,
-                       Lambda_deriv = Lambda_deriv,
-                       progressBar = progressBar)
+  # Estimation
+  if (lambda == 0){
+    # Estimation by least-squares
+    reg = stats::lm.fit(x = designMatrix_withIntercept[whichFinite, ],
+                        y = LambdaCKT[whichFinite])
+    vector_hat_beta = reg$coefficient
+    fitted.values = reg$fitted.values
+  } else {
+    # Penalized estimation
+    reg = glmnet::glmnet(x = designMatrix_withIntercept[whichFinite, ],
+                         y = LambdaCKT[whichFinite],
+                         family = "gaussian",
+                         intercept = FALSE)
 
-  pval_Wn = 1 - stats::pchisq(as.numeric(resultWn$W_n), df = length(whichFinite))
+    vector_hat_beta = stats::coef(reg, s = lambda)[-1]
+    names(vector_hat_beta) <- coefNames
+    fitted.values = stats::predict(reg, s = lambda,
+                                   newx = designMatrix_withIntercept[whichFinite, ])
+  }
 
-  return (list(p_val = pval_Wn, statWn = resultWn$W_n))
+  # non_zeroCoeffs = which(vector_hat_beta != 0)
+  # if (length(non_zeroCoeffs) == 0){
+  #   warning("All coefficients are found to be equal to 0. ",
+  #           "This means that lambda is probably too high. Currently lambda = ",
+  #           lambda)
+  #
+  #   return (NULL)
+  # }
+
+  # Computation of the asymptotic variance matrix
+
+  resultWn = compute_for_Wn(
+    vectorZ = Z,
+    vectorZToEstimate = vectorZToEstimate[whichFinite],
+    vector_hat_CKT_NP = vectorEstimate_1step[whichFinite],
+    vector_hat_beta = vector_hat_beta,
+    matrixSignsPairs = matrixSignsPairs,
+    inputMatrix = designMatrix_withIntercept[whichFinite, ],
+    h = h_kernel,
+    kernel.name = "Epa",
+    intK2 = 3/5,
+    Lambda_deriv = Lambda_deriv,
+    progressBar = TRUE #### TODO : manage the progressbars
+  )
+
+  # computation of the variance-covariance matrix
+  varCov = resultWn$matrix_Vn_completed / (n * h_kernel)
+
+  df = length(listPhi)
+
+  # Computation of the test statistic W_n
+  statWn = n * h_kernel * t(vector_hat_beta[-1]) %*%
+    solve(resultWn$matrix_Vn_completed[-1, -1]) %*% t( t(vector_hat_beta[-1]) )
+
+  # Conversion to numeric type and computation of the p-value
+  statWn = as.numeric(statWn)
+  pval_Wn = 1 - stats::pchisq(statWn, df = df)
+
+  result = list(p_val = pval_Wn,
+                statWn = statWn, df = df,
+                coef = vector_hat_beta,
+                resultWn = resultWn,
+                varCov = varCov,
+                designMatrix_withIntercept = designMatrix_withIntercept,
+                vectorZToEstimate = vectorZToEstimate,
+                vector_hat_CKT_NP = vectorEstimate_1step,
+                n = n,
+                h_kernel = h_kernel,
+                fitted.values = fitted.values,
+                Lambda = Lambda,
+                Lambda_inv = Lambda_inv,
+                Lambda_deriv = Lambda_deriv,
+                lambda = lambda)
+
+  class(result) <- "simpA_kendallReg_test"
+  return (result)
 }
 
 
+#'
+#' @export
+#' @rdname simpA.kendallReg
+#'
+coef.simpA_kendallReg_test <- function(object, ...)
+{
+  std_errors = diag(object$varCov)
+  z_values = object$coef / diag(object$varCov)
+  coef = cbind(Estimate = object$coef,
+               `Std. Error` = std_errors,
+               `z value` = z_values,
+               `p-value` = 2 * stats::pnorm(abs(z_values), lower.tail = FALSE))
 
-# Compute the Wald-type test statistic related to
+  return (coef)
+}
+
+
+#' @export
+#' @rdname simpA.kendallReg
+#'
+vcov.simpA_kendallReg_test <- function(object, ...)
+{
+  return (object$varCov)
+}
+
+
+#' @export
+#' @rdname simpA.kendallReg
+print.simpA_kendallReg_test <- function(x, ...)
+{
+  # Use stringi::stri_escape_unicode to get the unicode characters escaped
+  cat("Kendall regression: \u039b(\U0001d70f) = \u03b20 + \u03b2\' phi(z) \n")
+  cat("where \U0001d70f is conditional Kendall's tau between X1 and X2 given Z = z \n \n")
+  cat("Coefficients: \n")
+  std_errors = diag(x$varCov)
+  z_values = x$coef / diag(x$varCov)
+  coef = cbind(Estimate = x$coef,
+               `Std. Error` = std_errors,
+               `z value` = z_values,
+               `p-value` = 2 * stats::pnorm(abs(z_values), lower.tail = FALSE))
+
+  stats::printCoefmat(coef)
+  cat("\n")
+  cat("Wald statistics \u03b2\' V^{-1} \u03b2\ :", x$statWn, "\n")
+  cat("Test of the simplifying assumption with", x$df, "DF,  ",
+      "pvalue: ", x$p_val)
+  cat("\n")
+}
+
+#' @export
+#' @rdname simpA.kendallReg
+plot.simpA_kendallReg_test <- function(x, ylim = c(-1.5, 1.5), ...)
+{
+  z = x$vectorZToEstimate
+  est_CKT_NP = x$vector_hat_CKT_NP
+  asympt_se_np = sqrt(x$resultWn$vect_H_ii) / sqrt(x$n * x$h_kernel)
+
+  plot(z, est_CKT_NP, type = "l", ylim = ylim, col = "red",
+       ylab = "Conditional Kendall's tau given Z = z")
+  graphics::lines(z, est_CKT_NP + 1.96 * asympt_se_np, type = "l", col = "red")
+  graphics::lines(z, est_CKT_NP - 1.96 * asympt_se_np, type = "l", col = "red")
+
+  est_CKT_reg = vapply(X = x$fitted.values, FUN = x$Lambda_inv, FUN.VALUE = 1)
+
+  # Remember the chain rule (lambda^{-1})' = 1 / (lambda' o lambda^{-1}))
+  lambdainvprime_estCKT = 1 / vapply(X = x$fitted.values, FUN = x$Lambda_deriv, FUN.VALUE = 1)
+
+  # vcov matrix for beta' phi(z)
+  designMatrix = x$designMatrix_withIntercept
+  varCov = x$varCov
+  vcova = designMatrix %*% varCov %*% t(designMatrix)
+
+  # vcov matrix for lambdainv(beta' phi(z))
+  # by the delta method, this is given by the sandwich rule
+  vcova = diag(lambdainvprime_estCKT) %*% vcova %*% diag(lambdainvprime_estCKT)
+
+  asympt_se_reg = sqrt(diag(vcova))
+
+  graphics::lines(z, est_CKT_reg, type = "l", ylim = ylim, col = "blue")
+  graphics::lines(z, est_CKT_reg + 1.96 * asympt_se_reg, type = "l", col = "blue")
+  graphics::lines(z, est_CKT_reg - 1.96 * asympt_se_reg, type = "l", col = "blue")
+
+  df = cbind(
+    z,
+    est_CKT_NP,
+    asympt_se_np,
+    est_CKT_NP_q025 = est_CKT_NP - 1.96 * asympt_se_np,
+    est_CKT_NP_q975 = est_CKT_NP + 1.96 * asympt_se_np,
+    est_CKT_reg,
+    asympt_se_reg,
+    est_CKT_reg_q025 = est_CKT_reg - 1.96 * asympt_se_reg,
+    est_CKT_reg_q975 = est_CKT_reg + 1.96 * asympt_se_reg
+  )
+
+  return (invisible(df))
+}
+
+
+# Compute the elements for Wald-type test statistic related to
 # the hypothesis $\beta = 0$ against $\beta != 0$
 # vectorZ is the vector of Z in the database of length n
 # vectorZToEstimate is the vector of z'_i
@@ -221,10 +459,10 @@ simpA.kendallReg <- function(
 # vector_hat_beta is the vector of coefficients, of size p'
 # matrixSignsPairs is a matrix of size n * n
 # inputMatrix is the inputMatrix of size n' * p'
-computeWn = function(
-  vectorZ, vectorZToEstimate, vector_hat_CKT_NP, vector_hat_beta,
-  matrixSignsPairs, inputMatrix, h, kernel.name, intK2, Lambda_deriv,
-  progressBar)
+compute_for_Wn = function(
+    vectorZ, vectorZToEstimate, vector_hat_CKT_NP, vector_hat_beta,
+    matrixSignsPairs, inputMatrix, h, kernel.name, intK2, Lambda_deriv,
+    progressBar)
 {
   nprime = length(vectorZToEstimate)
   n = length(vectorZ)
@@ -259,12 +497,6 @@ computeWn = function(
         kernel.name, matrixSignsPairsSymmetrized) } )
   }
 
-
-  # compute_vect_Gn_zipr(vectorZ = vectorZ,
-  #                      h = h, vectorZToEstimate = vectorZToEstimate,
-  #                      kernel.name = kernel.name,
-  #                      matrixSignsPairs = matrixSignsPairs)
-
   # 2 - Computation of H_(i,i) under the hypothesis that all z'_i are distinct
   vect_H_ii = rep(NA, nprime)
   for (iprime in 1:nprime) {
@@ -274,7 +506,7 @@ computeWn = function(
       kernel.name = kernel.name, normalization = FALSE)
     estimator_fZ = mean(listKh)
     vect_H_ii[iprime] = 4 * (intK2 / estimator_fZ) *
-      (Lambda_deriv(pointZ))^2 * (Gn_zipr[iprime] - (vector_hat_CKT_NP[iprime])^2)
+      (Lambda_deriv(pointZ))^2 * abs(Gn_zipr[iprime] - (vector_hat_CKT_NP[iprime])^2)
   }
 
   # 3 - Computation of Sigma_npr
@@ -294,11 +526,7 @@ computeWn = function(
   matrix_Vn_completed =
     inv_matrix_Sigma_npr %*% matrix_Vn %*% inv_matrix_Sigma_npr
 
-  # 5 - Computation of W_n
-  W_n = n * h * t(vector_hat_beta[-1]) %*%
-    matrix_Vn_completed %*% t( t(vector_hat_beta[-1]) )
-
-  return (list(W_n = W_n, Gn_zipr = Gn_zipr,
+  return (list(Gn_zipr = Gn_zipr,
                vect_H_ii = vect_H_ii,
                matrix_Sigma_npr = matrix_Sigma_npr,
                matrix_Vn = matrix_Vn,
@@ -326,6 +554,7 @@ computeVectorZToEstimate = function(vecteurZrealised,
 # This function returns Gn(z'_i), z'_i = pointZ
 # which is an estimator of the conditional expectation
 # E(g(X_1, X_2) g(X_1, X_3) | Z_1 = Z_2 = Z_3 = z'_i]
+# We want to compute sum_{i,j,k} w_i w_j w_k g_{i,k} g_{j,k}
 compute_vect_Gn_zipr = function(pointZ, vectorZ, h,
                                 kernel.name, matrixSignsPairsSymmetrized)
 {

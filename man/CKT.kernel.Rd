@@ -5,9 +5,9 @@
 \title{Estimation of conditional Kendall's tau using kernel smoothing}
 \usage{
 CKT.kernel(
-  observedX1,
-  observedX2,
-  observedZ,
+  X1 = NULL,
+  X2 = NULL,
+  Z = NULL,
   newZ,
   h,
   kernel.name = "Epa",
@@ -15,15 +15,20 @@ CKT.kernel(
   Kfolds = 5,
   nPairs = 10 * length(observedX1),
   typeEstCKT = "wdm",
-  progressBar = TRUE
+  progressBar = TRUE,
+  observedX1 = NULL,
+  observedX2 = NULL,
+  observedZ = NULL
 )
 }
 \arguments{
-\item{observedX1}{a vector of n observations of the first variable}
+\item{X1}{a vector of n observations of the first variable
+(or a 1-column matrix)}
 
-\item{observedX2}{a vector of n observations of the second variable}
+\item{X2}{a vector of n observations of the second variable
+(or a 1-column matrix)}
 
-\item{observedZ}{a vector of n observations of the conditioning variable,
+\item{Z}{a vector of n observations of the conditioning variable,
 or a matrix with n rows of observations of the conditioning vector}
 
 \item{newZ}{the new data of observations of Z at which
@@ -60,8 +65,22 @@ Possible choices are \itemize{
   as \code{4} when they are no ties in the data.
 }}
 
-\item{progressBar}{if \code{TRUE}, a progressbar for each h is displayed
-to show the progress of the computation.}
+\item{progressBar}{control the display of progress bars.
+Possible choices are: \itemize{
+  \item \code{0} no progress bar is displayed
+
+  \item \code{1} a general progress bar is displayed
+
+  \item \code{2} and larger values:
+  a general progress bar is displayed, and additionally,
+  a progressbar for each value of \code{h} is displayed
+  to show the progress of the computation.
+  This only applies when the bandwidth is chosen by cross-validation
+  (i.e. when \code{h} is a vector).
+}}
+
+\item{observedX1, observedX2, observedZ}{old parameter names for \code{X1},
+\code{X2}, \code{Z}. Support for this will be removed at a later version.}
 }
 \value{
 a list with two components
@@ -126,14 +145,14 @@ X2 = qnorm(simCopula[,2])
 
 newZ = seq(2,10,by = 0.1)
 estimatedCKT_kernel <- CKT.kernel(
-   observedX1 = X1, observedX2 = X2, observedZ = Z,
+   X1 = X1, X2 = X2, Z = Z,
    newZ = newZ, h = 0.1, kernel.name = "Epa")$estimatedCKT
 
 # Comparison between true Kendall's tau (in black)
 # and estimated Kendall's tau (in red)
 trueConditionalTau = -0.9 + 1.8 * pnorm(newZ, mean = 5, sd = 2)
-plot(newZ, trueConditionalTau , col="black",
-   type = "l", ylim = c(-1, 1))
+plot(newZ, trueConditionalTau , col = "black",
+     type = "l", ylim = c(-1, 1))
 lines(newZ, estimatedCKT_kernel, col = "red")
 
 }
