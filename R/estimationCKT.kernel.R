@@ -184,21 +184,28 @@ CKT.kernelPointwise.multivariate <- function(X1, X2, matrixSignsPairs, matrixZ,
                                              h, pointZ, kernel.name, typeEstCKT)
 {
   if (kernel.name == "Epa"){
-    # For faster computation, only uses points with non-zero
-    # values for the kernel
+    # For faster computation, only uses points with non-zero values for the kernel
     u = sweep(matrixZ, MARGIN = 2, STATS = pointZ)
+
     isSmaller_h = apply(X = u, MARGIN = 1, FUN = function(x){
       return (all(abs(x) <= h))
     })
-    whichNonZero = which( isSmaller_h )
-    listWeights = computeWeights.multivariate(
-      matrixZ[whichNonZero, ], h, pointZ, kernel.name)
 
-  } else {
-    listWeights = computeWeights.multivariate(
-      matrixZ[ , ], h, pointZ, kernel.name)
+    whichNonZero = which( isSmaller_h )
+
+    # We need at least 2 points, i.e. at least 1 pair,
+    # to estimate (conditional) Kendall's tau
+    if (length(whichNonZero) <= 1){
+      return (NA)
+    } # now `length(whichNonZero)` is at least 2.
+
+    matrixZ = matrixZ[whichNonZero, ]
+    matrixSignsPairs = matrixSignsPairs[whichNonZero, whichNonZero]
+    X1 = X1[whichNonZero]
+    X2 = X2[whichNonZero]
   }
 
+  listWeights = computeWeights.multivariate(matrixZ, h, pointZ, kernel.name)
 
   if(typeEstCKT == "wdm"){
 
@@ -210,17 +217,13 @@ CKT.kernelPointwise.multivariate <- function(X1, X2, matrixSignsPairs, matrixZ,
     switch (
       typeEstCKT,
       # 1
-      { estimate =
-        4 * sum(matrixWeights * matrixSignsPairs[whichNonZero, whichNonZero]) - 1 } ,
+      { estimate = 4 * sum(matrixWeights * matrixSignsPairs) - 1 } ,
       # 2
-      { estimate =sum(matrixWeights * matrixSignsPairs[whichNonZero, whichNonZero]) },
+      { estimate = sum(matrixWeights * matrixSignsPairs) },
       # 3
-      { estimate =
-        1 - 4 * sum(matrixWeights * matrixSignsPairs[whichNonZero, whichNonZero]) },
+      { estimate = 1 - 4 * sum(matrixWeights * matrixSignsPairs) },
       # 4
-      { estimate =
-        sum(matrixWeights * matrixSignsPairs[whichNonZero, whichNonZero]) /
-        (1 - sum(listWeights^2)) },
+      { estimate = sum(matrixWeights * matrixSignsPairs) / (1 - sum(listWeights^2)) },
 
       {stop(paste0("typeEstCKT: ", typeEstCKT, " is not in {1,2,3,4}" ) ) }
     )
@@ -267,9 +270,9 @@ CKT.kernel.univariate <- function(X1, X2, matrixSignsPairs, Z,
                                   progressBar = TRUE)
 {
   if (typeEstCKT != "wdm"){
-    if (nrow(matrixSignsPairs) != ncol(matrixSignsPairs)){
-      stop("matrixSignsPairs must be a square matrix.")
-    } else if (nrow(matrixSignsPairs) != length(Z)){
+    .check_MatrixSignPairs(matrixSignsPairs)
+
+    if (nrow(matrixSignsPairs) != length(Z)){
       stop(paste0("Z must have the same length ",
                   "as the number of rows of matrixSignsPairs."))
     }
@@ -286,14 +289,16 @@ CKT.kernel.univariate <- function(X1, X2, matrixSignsPairs, Z,
     estimates = pbapply::pbapply(
       X = array(1:n_prime), MARGIN = 1,
       FUN = function(i) {CKT.kernelPointwise.univariate(
-        X1 = X1, X2 = X2, pointZ = ZToEstimate[i], matrixSignsPairs = matrixSignsPairs,
+        X1 = X1, X2 = X2, pointZ = ZToEstimate[i],
+        matrixSignsPairs = matrixSignsPairs,
         h = h_vect[i], vectorZ = Z,
         kernel.name = kernel.name, typeEstCKT = typeEstCKT) } )
   } else {
     estimates = apply(
       X = array(1:n_prime), MARGIN = 1,
       FUN = function(i) {CKT.kernelPointwise.univariate(
-        X1 = X1, X2 = X2, pointZ = ZToEstimate[i], matrixSignsPairs = matrixSignsPairs,
+        X1 = X1, X2 = X2, pointZ = ZToEstimate[i],
+        matrixSignsPairs = matrixSignsPairs,
         h = h_vect[i], vectorZ = Z,
         kernel.name = kernel.name, typeEstCKT = typeEstCKT) } )
   }
@@ -336,16 +341,14 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
                                     progressBar = TRUE)
 {
   if (typeEstCKT != "wdm"){
-    if (nrow(matrixSignsPairs) != ncol(matrixSignsPairs)){
-      stop("matrixSignsPairs must be a square matrix.")
-    } else if (nrow(matrixSignsPairs) != nrow(Z)){
-      stop(paste0("Z and matrixSignsPairs must have",
-                  "the same number of rows."))
-    } else if (ncol(Z) != ncol(ZToEstimate)){
-      stop(paste0("Z and ZToEstimate must have",
-                  "the same number of columns."))
+    .check_MatrixSignPairs(matrixSignsPairs)
+
+    if (NROW(matrixSignsPairs) != NROW(Z)){
+      stop("'Z' and 'matrixSignsPairs' must have the same number of rows.")
     }
   }
+
+  .checkSame_ncols_Z_newZ(Z, ZToEstimate, name_Z = "Z", name_newZ = "ZToEstimate")
 
   dim_Z = ncol(Z)
   n_prime = nrow(ZToEstimate)
@@ -360,14 +363,16 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
     estimates = pbapply::pbapply(
       X = array(1:n_prime), MARGIN = 1,
       FUN = function(i) {CKT.kernelPointwise.multivariate(
-        X1 = X1, X2 = X2, pointZ = ZToEstimate[i,], matrixSignsPairs = matrixSignsPairs,
+        X1 = X1, X2 = X2, pointZ = ZToEstimate[i,],
+        matrixSignsPairs = matrixSignsPairs,
         h = h_vect[i], matrixZ = Z,
         kernel.name = kernel.name, typeEstCKT = typeEstCKT) } )
   } else {
     estimates = apply(
       X = 1:n_prime, MARGIN = 1,
       FUN = function(i) {CKT.kernelPointwise.multivariate(
-        X1 = X1, X2 = X2, pointZ = ZToEstimate[i,], matrixSignsPairs = matrixSignsPairs,
+        X1 = X1, X2 = X2, pointZ = ZToEstimate[i,],
+        matrixSignsPairs = matrixSignsPairs,
         h = h_vect[i], matrixZ = Z,
         kernel.name = kernel.name, typeEstCKT = typeEstCKT) } )
   }
@@ -411,8 +416,9 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
 #' Note that for a consistent estimation, as the sample size \eqn{n} tends
 #' to the infinity, \code{h} should tend to \eqn{0} while the size of the set
 #' \eqn{\{i: Z_i \in [z \pm h]\}} should also tend to the infinity.
-#' Indeed the conditioning points should be closer and closer to the point of interest \eqn{z}
-#' (small \code{h}) and more and more numerous (\code{h} tending to 0 slowly enough).
+#' Indeed the conditioning points should be closer and closer to the point of
+#' interest \eqn{z} (small \code{h}) and more and more numerous
+#' (\code{h} tending to 0 slowly enough).
 #'
 #' In the multivariate case, similar recommendations can be made.
 #' Because of the curse of dimensionality, a larger sample will be necessary to
@@ -427,9 +433,14 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
 #'
 #' @param Z a vector of n observations of the conditioning variable,
 #' or a matrix with n rows of observations of the conditioning vector
+#' (in the case that several conditioning variables are given; in this case,
+#' each column corresponds to 1 conditioning variable). It can also be a
+#' \code{data.frame}, provided that all the entries are \code{numeric}.
 #'
-#' @param newZ the new data of observations of Z at which
-#' the conditional Kendall's tau should be estimated.
+#' @param newZ the new data of observations of Z at which the conditional
+#' Kendall's tau should be estimated. It must have the same number of column
+#' as \code{Z}. It can be a vector (if \code{NCOL(Z) == 1}), a \code{matrix} or
+#' a \code{data.frame}, provided that all the entries are \code{numeric}.
 #'
 #' @param typeEstCKT type of estimation of the conditional Kendall's tau.
 #' Possible choices are \itemize{
@@ -448,7 +459,9 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
 #' Possible choices are \code{"leave-one-out"} and \code{"Kfolds"}.
 #'
 #' @param nPairs number of pairs used in the cross-validation criteria,
-#' if \code{methodCV = "leave-one-out"}.
+#' if \code{methodCV = "leave-one-out"}. Use \code{nPairs = "all"} to choose
+#' all pairs. The default is \code{nPairs = 10 * n}, where \code{n} is the
+#' sample size.
 #'
 #' @param Kfolds number of subsamples used,
 #' if \code{methodCV = "Kfolds"}.
@@ -476,6 +489,19 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
 #'   (i.e. when \code{h} is a vector).
 #' }
 #'
+#' @param warnNA a Boolean to indicate whether warnings should be raised if
+#' \code{NA}s are produced. By default it is \code{TRUE}. If \code{warnNA=FALSE},
+#' then no warning is raised even if \code{NA}s are produced. This is the case
+#' usually if either the bandwidth \code{h} is too small, or if there are already
+#' \code{NA}s in (some of) the inputs.
+#'
+#' @param se,confint if \code{TRUE}, compute (asymptotic) standard errors and
+#' confidence intervals of conditional Kendall's tau. Standard errors are
+#' computed using Proposition 9 of (Derumigny & Fermanian, 2019).
+#'
+#' @param level the confidence level for the confidence intervals. By default,
+#' 95\% confidence intervals are computed, i.e. \code{level = 0.95}.
+#'
 #' @param observedX1,observedX2,observedZ old parameter names for \code{X1},
 #' \code{X2}, \code{Z}. Support for this will be removed at a later version.
 #'
@@ -487,7 +513,8 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
 #' Dependence Modeling, 7(1), 292-321.
 #' \doi{10.1515/demo-2019-0016}
 #'
-#' @return a list with two components
+#' @return an \code{S3} object of class \code{estimated_CKT_kernel} with
+#' components including:
 #' \itemize{
 #'    \item \code{estimatedCKT} the vector of size \code{NROW(newZ)}
 #'    containing the values of the estimated conditional Kendall's tau.
@@ -495,7 +522,16 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
 #'    \item \code{finalh} the bandwidth \code{h} that was finally used
 #'    for kernel smoothing (either the one specified by the user
 #'    or the one chosen by cross-validation if multiple bandwidths were given.)
+#'
+#'    \item \code{resultCV} (only in case of cross-validation). This gives the
+#'    output of the cross-validation function that is used, i.e. the output of
+#'    either \code{\link{CKT.hCV.l1out}} or \code{\link{CKT.hCV.Kfolds}}.
+#'
+#'    \item \code{se}, and \code{confint} if requested.
 #' }
+#' Some methods (\code{se}, \code{confint} and \code{plot}) are available for
+#' such an object, see \code{\link{plot.estimated_CKT_kernel}}.
+#'
 #'
 #' @seealso \code{\link{CKT.estimate}} for other estimators
 #' of conditional Kendall's tau.
@@ -509,7 +545,10 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
 #' @examples
 #' # We simulate from a conditional copula
 #' set.seed(1)
-#' N = 800
+#' N = 100
+#' # This is a small example for performance reason.
+#' # For a better example, use:
+#' # N = 800
 #' Z = rnorm(n = N, mean = 5, sd = 2)
 #' conditionalTau = -0.9 + 1.8 * pnorm(Z, mean = 5, sd = 2)
 #' simCopula = VineCopula::BiCopSim(N=N , family = 1,
@@ -529,13 +568,50 @@ CKT.kernel.multivariate <- function(X1, X2, matrixSignsPairs, Z,
 #'      type = "l", ylim = c(-1, 1))
 #' lines(newZ, estimatedCKT_kernel, col = "red")
 #'
+#' # Multivariate example
+#' N = 100
+#' # This is a small example for performance reason.
+#' # For a better example, use:
+#' # N = 1000
+#' Z1 = rnorm(n = N, mean = 5, sd = 2)
+#' Z2 = rnorm(n = N, mean = 5, sd = 2)
+#' conditionalTau = -0.9 + 1.8 * pnorm(Z1 - Z2, mean = 2, sd = 2)
+#' simCopula = VineCopula::BiCopSim(N = N , family = 1,
+#'     par = VineCopula::BiCopTau2Par(1 , conditionalTau ))
+#' X1 = qnorm(simCopula[,1])
+#' X2 = qnorm(simCopula[,2])
+#'
+#' Z = cbind(Z1, Z2)
+#'
+#' newZ = expand.grid(Z1 = seq(2,8,by = 0.5),
+#'                    Z2 = seq(2,8,by = 1))
+#' estimatedCKT_kernel <- CKT.kernel(
+#'    X1 = X1, X2 = X2, Z = Z,
+#'    newZ = newZ, h = 1, kernel.name = "Epa")$estimatedCKT
+#'
+#' if (requireNamespace("ggplot2", quietly = TRUE)) {
+#'   df = rbind(
+#'     data.frame(newZ, CKT = estimatedCKT_kernel,
+#'                type = "estimated CKT") ,
+#'     data.frame(newZ, CKT = -0.9 + 1.8 * pnorm(newZ$Z1 - newZ$Z2,
+#'                                               mean = 2, sd = 2),
+#'                type = "true CKT")
+#'   )
+#'
+#'   ggplot2::ggplot(df) +
+#'   ggplot2::geom_tile(ggplot2::aes(x = Z1, y = Z2, fill = CKT)) +
+#'   ggplot2::facet_grid(as.formula("~type"))
+#' }
+#'
 #' @export
 #'
 CKT.kernel <- function(X1 = NULL, X2 = NULL, Z = NULL, newZ,
                        h, kernel.name = "Epa",
+                       se = FALSE, confint = FALSE, level = 0.95,
                        methodCV = "Kfolds",
-                       Kfolds = 5, nPairs = 10*length(observedX1),
-                       typeEstCKT = "wdm", progressBar = TRUE,
+                       Kfolds = 5, nPairs = NULL,
+                       typeEstCKT = "wdm", progressBar = 1,
+                       warnNA = TRUE,
                        observedX1 = NULL, observedX2 = NULL, observedZ = NULL)
 {
   if (length(newZ) == 0){
@@ -556,10 +632,13 @@ CKT.kernel <- function(X1 = NULL, X2 = NULL, Z = NULL, newZ,
   X1 = as.numeric(X1)
   X2 = as.numeric(X2)
 
-  # Putting Z as a column vector if it has only one column
-  if (NCOL(Z) == 1 && is.matrix(Z)){
-    Z = as.numeric(Z)
-  }
+  # Checking that the number of columns of Z and of newZ are the same
+  .checkSame_ncols_Z_newZ(Z, newZ, name_Z = "Z", name_newZ = "newZ")
+
+  # Checking the class of Z, newZ, and converting them to the right class
+  Z = .ensure_Z_numeric_vector_or_matrix(Z = Z, nameZ = "Z")
+  newZ = .ensure_Z_numeric_vector_or_matrix(Z = newZ, nameZ = "newZ")
+
 
   if (typeEstCKT == "wdm") {
     matrixSignsPairs = NULL
@@ -570,6 +649,8 @@ CKT.kernel <- function(X1 = NULL, X2 = NULL, Z = NULL, newZ,
 
   if (length(h) == 1){
     finalh = h
+    resultCV = NULL
+
   } else {
 
     # Do the cross-validation
@@ -618,16 +699,308 @@ CKT.kernel <- function(X1 = NULL, X2 = NULL, Z = NULL, newZ,
       progressBar = progressBar > 0)
   }
 
-  if (anyNA(estCKT)){
-    if (!anyNA(X1) && !anyNA(X2) && !anyNA(Z)){
-      warning("NA in estimated CKT. ",
-              "This often happens when the bandwidth h is too small, ",
-              "consider using a bigger bandwidth ",
-              "(see the documentation for advice on the choice of h).")
+  result = list(estimatedCKT = estCKT, h = finalh,
+                resultCV = resultCV,
+                matrixSignsPairs = matrixSignsPairs,
+                X1 = X1, X2 = X2, Z = Z, newZ = newZ,
+                kernel.name = kernel.name,
+                typeEstCKT = typeEstCKT)
+
+  class(result) <- "estimated_CKT_kernel"
+
+  # Adding additional components to result as requested
+  if (confint){
+    # Confidence intervals requires the knowledge of the standard error
+    se <- TRUE
+  }
+  if (se){
+    result$se <- se(result, progressBar = progressBar)
+  }
+  if (confint){
+    result$confint = confint(object = result, level = level,
+                             progressBar = progressBar)
+  }
+
+  # Raise warnings for NA values, if any  ======================================
+
+  if (warnNA){
+    if (anyNA(estCKT)){
+      warnNA_CKT.kernel(
+        X1 = X1, X2 = X2, Z = Z, newZ = newZ,
+        estimator = estCKT,
+        nameEstimator = "estimated conditional Kendall's tau")
+
+    } else if (anyNA(result$se)){
+      warnNA_CKT.kernel(
+        X1 = X1, X2 = X2, Z = Z, newZ = newZ,
+        estimator = result$se,
+        nameEstimator = "standard error of conditional Kendall's tau")
     }
   }
 
-  return (list(estimatedCKT = estCKT, h = finalh))
+  return (result)
 }
 
+
+warnNA_CKT.kernel <- function(X1, X2, Z, newZ, estimator, nameEstimator){
+  n_NA = length(which(is.na(estimator)))
+
+  if (!anyNA(X1) && !anyNA(X2) && !anyNA(Z) && !anyNA(newZ)){
+
+    message = paste0(
+      "NA in ", nameEstimator ," (", n_NA, " out of ", NROW(newZ), ").\n",
+      "This often happens when the bandwidth h is too small, ",
+      "consider using a bigger bandwidth ",
+      "(see the documentation for advice on the choice of h).\n",
+      "You can disable this warning using the input `warnNA = FALSE`.")
+
+  } else {
+    n_NA_X1 = length(which(is.na(X1)))
+    n_NA_X2 = length(which(is.na(X2)))
+    n_NA_Z = length(which(is.na(Z)))
+    n_NA_newZ = length(which(is.na(newZ)))
+
+    message = paste0(
+      "NA in ", nameEstimator ," (", n_NA, " out of ", NROW(newZ), "). \n",
+      "Here there are also missing values in the following inputs: \n",
+      "* X1: "  , n_NA_X1  , " missing out of ", length(X1)  , "\n",
+      "* X2: "  , n_NA_X2  , " missing out of ", length(X2)  , "\n",
+      "* Z: "   , n_NA_Z   , " missing out of ", length(Z)   , "\n",
+      "* newZ: ", n_NA_newZ, " missing out of ", length(newZ), "\n",
+      "This can also happens if the bandwidth is too small ",
+      "(see the documentation for advice on the choice of h).\n",
+      "You can disable this warning using the input `warnNA = FALSE`.")
+  }
+
+  warning(CondCopulas_warning_condition_base(
+    message = message,
+    subclass = "NA_ProducedWarning")
+  )
+}
+
+
+
+#' @export
+#'
+#' @rdname plot.estimated_CKT_kernel
+se.estimated_CKT_kernel <- function(object, progressBar = TRUE, ...)
+{
+  if ( !is.null(object$se) ){
+    return(object$se)
+  }
+
+  if ( is.null(object$matrixSignPairs)){
+    typeEstCKT = if(object$typeEstCKT == "wdm") 4 else object$typeEstCKT
+
+    matrixSignsPairs = computeMatrixSignPairs(
+      vectorX1 = object$X1, vectorX2 = object$X2, typeEstCKT = typeEstCKT)
+  } else {
+    matrixSignsPairs = object$matrixSignsPairs
+  }
+
+  temp <- compute_all_Gn_H_ii(vectorZ = object$Z,
+                              vectorZToEstimate = object$newZ,
+                              vector_hat_CKT_NP = object$estimatedCKT,
+                              matrixSignsPairs = matrixSignsPairs,
+                              h = object$h, kernel.name = "Epa", intK2 = 3/5,
+                              progressBar = progressBar)
+
+  n = length(object$X1)
+
+  asympt_se_np = sqrt(temp$vect_H_ii) / sqrt(n * object$h)
+
+  return (asympt_se_np)
+}
+
+
+#' @export
+#'
+#' @rdname plot.estimated_CKT_kernel
+confint.estimated_CKT_kernel <- function(object, parm = NULL, level = 0.95,
+                                         progressBar = TRUE, ...)
+{
+  if (is.null(object$se)){
+    object$se = se(object, progressBar = progressBar)
+  }
+  # Now se is available
+
+  # Quantile of the standard normal distribution at level 1 - alpha / 2
+  alpha = 1 - level
+  q_1_alpha_2 <- stats::qnorm(1 - alpha / 2)
+
+  estCKT = object$estimatedCKT
+  nprime = length(estCKT)
+
+  result <- matrix(nrow = nprime, ncol = 2)
+  result[, 1] = pmax(-1, estCKT - q_1_alpha_2 * object$se)
+  result[, 2] = pmin(1, estCKT + q_1_alpha_2 * object$se)
+
+  colnames(result) <- paste(c(alpha / 2, 1 - alpha / 2) , "%")
+  if (is.null(dim(object$newZ))){
+    rownames(result) <- object$newZ
+  } else {
+    rownames(result) <- apply(object$newZ, MARGIN = 1, FUN = paste0, collapse = ";")
+  }
+
+  return (result)
+}
+
+
+#' Methods for class `estimated_CKT_kernel`
+#'
+#' @param object,x an \code{S3} object of class \code{estimated_CKT_kernel}.
+#'
+#' @param progressBar \code{TRUE} if a progress bar is plotted if computations
+#' of standard errors is needed. Note that in some case, the standard error is
+#' already available in the object itself, then no progress bar is needed.
+#'
+#' @param confint in case of the \code{plot} method, should confidence bands
+#' also be plotted?
+#'
+#' @param level the confidence level for the confidence intervals. By default,
+#' 95\% confidence intervals are computed, i.e. \code{level = 0.95}.
+#'
+#' @param color_CKT,color_confint the colors respectively for the CKT curve
+#' and for the confidence intervals.
+#'
+#' @param xlim,ylim the x,y limits of the plot.
+#'
+#' @param parm ignored for the moment, kept for compatibility with the generic
+#' \code{confint} method.
+#'
+#' @param ... other arguments, currently passed to \code{plot.default} only for
+#' the \code{plot} method. These are ignored for the other methods.
+#'
+#'
+#' @return \code{plot} is only called for its side effect and does not return
+#' anything.
+#'
+#' \code{se} returns a vector of the same length as the number of points
+#' in the input \code{newZ} that was given to the function \code{\link{CKT.kernel}}.
+#'
+#' \code{confint} returns a matrix with 2 columns and the same number of rows as
+#' the number of points in the input \code{newZ} that was given to the function
+#' \code{\link{CKT.kernel}}.
+#'
+#'
+#' @seealso \code{\link{CKT.kernel}} which generates objects of class
+#' \code{estimated_CKT_kernel}.
+#'
+#' @examples
+#' # We simulate from a conditional copula
+#' set.seed(1)
+#' N = 100
+#' # This is a small example for performance reasons.
+#' # For a better example, use:
+#' # N = 800
+#' Z = rnorm(n = N, mean = 5, sd = 2)
+#' conditionalTau = -0.9 + 1.8 * pnorm(Z, mean = 5, sd = 2)
+#' simCopula = VineCopula::BiCopSim(N=N , family = 1,
+#'     par = VineCopula::BiCopTau2Par(1 , conditionalTau ))
+#' X1 = qnorm(simCopula[,1])
+#' X2 = qnorm(simCopula[,2])
+#'
+#' newZ = seq(2, 10, by = 1)
+#' estimatedCKT_kernel <- CKT.kernel(
+#'    X1 = X1, X2 = X2, Z = Z,
+#'    newZ = newZ, h = 0.2, kernel.name = "Epa", se = TRUE)
+#'
+#' se(estimatedCKT_kernel)
+#' confint(estimatedCKT_kernel, level = 0.9)
+#'
+#' plot(estimatedCKT_kernel, confint = TRUE)
+#'
+#'
+#' @export
+plot.estimated_CKT_kernel <- function(x, confint = NULL, level = NULL,
+                                      xlim = NULL, ylim = c(-1.2, 1.2),
+                                      progressBar = TRUE,
+                                      color_CKT = "black", color_confint = "red",
+                                      ...)
+{
+  plot(x$newZ, x$estimatedCKT, type = "l", ylim = ylim, xlim = xlim,
+       xlab = "z",
+       ylab = "Conditional Kendall's tau given Z = z", col = color_CKT, ...)
+
+  if (!isFALSE(confint)){
+
+    # Easy case: a level is not specified but confint is available in the object.
+    # then we just plot it.
+    if (is.null(level) && !is.null(x$confint)){
+      graphics::lines(x$newZ, x$confint[, 1], type = "l", col = color_confint)
+      graphics::lines(x$newZ, x$confint[, 2], type = "l", col = color_confint)
+    } else {
+      # We will need to do computations. But first, let's see whether the user
+      # intended to plot a confidence interval
+      if (is.null(confint)){
+        # If the user specifies a level then it shows intent to have a
+        # confidence interval
+        confint = !is.null(level)
+      } else {
+        # If the user specifies confint = TRUE but without giving an explicit
+        # level, we use by default 95%
+        if (is.null(level)){
+          level = 0.95
+        }
+      }
+      if (confint){
+        x$confint = confint(x, level = level, progressBar = progressBar)
+        graphics::lines(x$newZ, x$confint[, 1], type = "l", col = color_confint)
+        graphics::lines(x$newZ, x$confint[, 2], type = "l", col = color_confint)
+      }
+    }
+  }
+}
+
+
+compute_all_Gn_H_ii <- function(vectorZ, vectorZToEstimate, matrixSignsPairs,
+                                vector_hat_CKT_NP,
+                                h, kernel.name, intK2, progressBar){
+  nprime = NROW(vectorZToEstimate)
+
+  # 1 - Computation of G_n(z'_i) for all i
+  if (is.null(dim(vectorZToEstimate))){
+    vectorZToEstimate_arr = array(vectorZToEstimate)
+  } else {
+    vectorZToEstimate_arr = array(vectorZToEstimate, dim = dim(vectorZToEstimate))
+  }
+
+  matrixSignsPairsSymmetrized = (matrixSignsPairs + t(matrixSignsPairs)) / 2
+  if (progressBar){
+    Gn_zipr = pbapply::pbapply(
+      X = vectorZToEstimate_arr, MARGIN = 1,
+      FUN = function(pointZ) {compute_vect_Gn_zipr(
+        pointZ, vectorZ, h,
+        kernel.name, matrixSignsPairsSymmetrized) } )
+  } else {
+    Gn_zipr = apply(
+      X = vectorZToEstimate_arr, MARGIN = 1,
+      FUN = function(pointZ) {compute_vect_Gn_zipr(
+        pointZ, vectorZ, h,
+        kernel.name, matrixSignsPairsSymmetrized) } )
+  }
+
+  # 2 - Computation of H_(i,i) under the hypothesis that all z'_i are distinct
+  vect_H_ii = rep(NA, nprime)
+  for (iprime in 1:nprime) {
+    if (is.null(dim(vectorZToEstimate))){
+      pointZ = vectorZToEstimate[iprime]
+      listKh = computeWeights.univariate(
+        vectorZ = vectorZ, h = h, pointZ = pointZ,
+        kernel.name = kernel.name, normalization = FALSE)
+    } else {
+      pointZ = vectorZToEstimate[iprime, ]
+      listKh = computeWeights.multivariate(
+        matrixZ = vectorZ, h = h, pointZ = pointZ,
+        kernel.name = kernel.name, normalization = FALSE)
+    }
+
+    estimator_fZ = mean(listKh)
+    vect_H_ii[iprime] = 4 * (intK2 / estimator_fZ) *
+      abs(Gn_zipr[iprime] - (vector_hat_CKT_NP[iprime])^2)
+  }
+
+  return (list(Gn_zipr = Gn_zipr,
+               vect_H_ii = vect_H_ii))
+}
 

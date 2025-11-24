@@ -11,11 +11,15 @@ CKT.kernel(
   newZ,
   h,
   kernel.name = "Epa",
+  se = FALSE,
+  confint = FALSE,
+  level = 0.95,
   methodCV = "Kfolds",
   Kfolds = 5,
-  nPairs = 10 * length(observedX1),
+  nPairs = NULL,
   typeEstCKT = "wdm",
-  progressBar = TRUE,
+  progressBar = 1,
+  warnNA = TRUE,
   observedX1 = NULL,
   observedX2 = NULL,
   observedZ = NULL
@@ -29,10 +33,15 @@ CKT.kernel(
 (or a 1-column matrix)}
 
 \item{Z}{a vector of n observations of the conditioning variable,
-or a matrix with n rows of observations of the conditioning vector}
+or a matrix with n rows of observations of the conditioning vector
+(in the case that several conditioning variables are given; in this case,
+each column corresponds to 1 conditioning variable). It can also be a
+\code{data.frame}, provided that all the entries are \code{numeric}.}
 
-\item{newZ}{the new data of observations of Z at which
-the conditional Kendall's tau should be estimated.}
+\item{newZ}{the new data of observations of Z at which the conditional
+Kendall's tau should be estimated. It must have the same number of column
+as \code{Z}. It can be a vector (if \code{NCOL(Z) == 1}), a \code{matrix} or
+a \code{data.frame}, provided that all the entries are \code{numeric}.}
 
 \item{h}{the bandwidth used for kernel smoothing.
 If this is a vector, then cross-validation is used following the method
@@ -43,6 +52,13 @@ before doing the estimation.}
 Possible choices are \code{"Gaussian"} (Gaussian kernel)
 and \code{"Epa"} (Epanechnikov kernel).}
 
+\item{se, confint}{if \code{TRUE}, compute (asymptotic) standard errors and
+confidence intervals of conditional Kendall's tau. Standard errors are
+computed using Proposition 9 of (Derumigny & Fermanian, 2019).}
+
+\item{level}{the confidence level for the confidence intervals. By default,
+95\% confidence intervals are computed, i.e. \code{level = 0.95}.}
+
 \item{methodCV}{method used for the cross-validation.
 Possible choices are \code{"leave-one-out"} and \code{"Kfolds"}.}
 
@@ -50,7 +66,9 @@ Possible choices are \code{"leave-one-out"} and \code{"Kfolds"}.}
 if \code{methodCV = "Kfolds"}.}
 
 \item{nPairs}{number of pairs used in the cross-validation criteria,
-if \code{methodCV = "leave-one-out"}.}
+if \code{methodCV = "leave-one-out"}. Use \code{nPairs = "all"} to choose
+all pairs. The default is \code{nPairs = 10 * n}, where \code{n} is the
+sample size.}
 
 \item{typeEstCKT}{type of estimation of the conditional Kendall's tau.
 Possible choices are \itemize{
@@ -79,11 +97,18 @@ Possible choices are: \itemize{
   (i.e. when \code{h} is a vector).
 }}
 
+\item{warnNA}{a Boolean to indicate whether warnings should be raised if
+\code{NA}s are produced. By default it is \code{TRUE}. If \code{warnNA=FALSE},
+then no warning is raised even if \code{NA}s are produced. This is the case
+usually if either the bandwidth \code{h} is too small, or if there are already
+\code{NA}s in (some of) the inputs.}
+
 \item{observedX1, observedX2, observedZ}{old parameter names for \code{X1},
 \code{X2}, \code{Z}. Support for this will be removed at a later version.}
 }
 \value{
-a list with two components
+an \code{S3} object of class \code{estimated_CKT_kernel} with
+components including:
 \itemize{
    \item \code{estimatedCKT} the vector of size \code{NROW(newZ)}
    containing the values of the estimated conditional Kendall's tau.
@@ -91,7 +116,15 @@ a list with two components
    \item \code{finalh} the bandwidth \code{h} that was finally used
    for kernel smoothing (either the one specified by the user
    or the one chosen by cross-validation if multiple bandwidths were given.)
+
+   \item \code{resultCV} (only in case of cross-validation). This gives the
+   output of the cross-validation function that is used, i.e. the output of
+   either \code{\link{CKT.hCV.l1out}} or \code{\link{CKT.hCV.Kfolds}}.
+
+   \item \code{se}, and \code{confint} if requested.
 }
+Some methods (\code{se}, \code{confint} and \code{plot}) are available for
+such an object, see \code{\link{plot.estimated_CKT_kernel}}.
 }
 \description{
 Let \eqn{X_1} and \eqn{X_2} be two random variables.
@@ -125,8 +158,9 @@ the whole dataset.
 Note that for a consistent estimation, as the sample size \eqn{n} tends
 to the infinity, \code{h} should tend to \eqn{0} while the size of the set
 \eqn{\{i: Z_i \in [z \pm h]\}} should also tend to the infinity.
-Indeed the conditioning points should be closer and closer to the point of interest \eqn{z}
-(small \code{h}) and more and more numerous (\code{h} tending to 0 slowly enough).
+Indeed the conditioning points should be closer and closer to the point of
+interest \eqn{z} (small \code{h}) and more and more numerous
+(\code{h} tending to 0 slowly enough).
 
 In the multivariate case, similar recommendations can be made.
 Because of the curse of dimensionality, a larger sample will be necessary to
@@ -135,7 +169,10 @@ reach the same level of precision as in the univariate case.
 \examples{
 # We simulate from a conditional copula
 set.seed(1)
-N = 800
+N = 100
+# This is a small example for performance reason.
+# For a better example, use:
+# N = 800
 Z = rnorm(n = N, mean = 5, sd = 2)
 conditionalTau = -0.9 + 1.8 * pnorm(Z, mean = 5, sd = 2)
 simCopula = VineCopula::BiCopSim(N=N , family = 1,
@@ -154,6 +191,41 @@ trueConditionalTau = -0.9 + 1.8 * pnorm(newZ, mean = 5, sd = 2)
 plot(newZ, trueConditionalTau , col = "black",
      type = "l", ylim = c(-1, 1))
 lines(newZ, estimatedCKT_kernel, col = "red")
+
+# Multivariate example
+N = 100
+# This is a small example for performance reason.
+# For a better example, use:
+# N = 1000
+Z1 = rnorm(n = N, mean = 5, sd = 2)
+Z2 = rnorm(n = N, mean = 5, sd = 2)
+conditionalTau = -0.9 + 1.8 * pnorm(Z1 - Z2, mean = 2, sd = 2)
+simCopula = VineCopula::BiCopSim(N = N , family = 1,
+    par = VineCopula::BiCopTau2Par(1 , conditionalTau ))
+X1 = qnorm(simCopula[,1])
+X2 = qnorm(simCopula[,2])
+
+Z = cbind(Z1, Z2)
+
+newZ = expand.grid(Z1 = seq(2,8,by = 0.5),
+                   Z2 = seq(2,8,by = 1))
+estimatedCKT_kernel <- CKT.kernel(
+   X1 = X1, X2 = X2, Z = Z,
+   newZ = newZ, h = 1, kernel.name = "Epa")$estimatedCKT
+
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  df = rbind(
+    data.frame(newZ, CKT = estimatedCKT_kernel,
+               type = "estimated CKT") ,
+    data.frame(newZ, CKT = -0.9 + 1.8 * pnorm(newZ$Z1 - newZ$Z2,
+                                              mean = 2, sd = 2),
+               type = "true CKT")
+  )
+
+  ggplot2::ggplot(df) +
+  ggplot2::geom_tile(ggplot2::aes(x = Z1, y = Z2, fill = CKT)) +
+  ggplot2::facet_grid(as.formula("~type"))
+}
 
 }
 \references{

@@ -1,4 +1,77 @@
 
+# CondCopulas 0.2.0
+
+## New features
+
+* New function `measures_nonsimplifyingness_NP` for the estimation of the 
+non-parametric measures of non-simplifyingness for conditional copulas,
+introduced in [arXiv:2504.07704](https://arxiv.org/pdf/2504.07704).
+
+* Add more explicit warnings in `estimateNPCondCopula` when the bandwidth `h`
+is too small. This should reduce the total number of warnings there when using
+too small bandwidth. The previous behavior was the following: there would be 1
+warning per value of `X3` such that the total sum of kernel-based weights is 0.
+The new behavior is the following: there is 1 warning per call of
+`estimateNPCondCopula`.
+
+* Inputs `Z` and `newZ` to `CKT.kernel` can be of class `data.frame`, provided
+that all the entries are numeric (and that the dimensions match).
+
+* Add option `warnNA = FALSE` to `CKT.kernel` for not raising warnings if some
+of the estimated conditional Kendall's tau are `NA`s. The corresponding warning
+has also been improved and is more explicit about the number of `NA`s produced,
+in particular, if the input already contained `NA`s.
+
+* `CKT.kernel` now returns an `S3` object of class `estimated_CKT_kernel` with
+`se`, `confint` and `plot` methods.
+
+* In case of cross-validation, `CKT.kernel` also returns the result of the
+corresponding function (`CKT.hCV.l1out` or `CKT.hCV.Kfolds`).
+
+* New option `nPairs = "all"` in `CKT.hCV.l1out` to use all possible pairs.
+Also available in `CKT.kernel` if `CKT.hCV.l1out` is chosen as the
+cross-validation method.
+
+* New S3 generic `se` for the standard errors. Currently only used for objects
+returned by `simpA.kendallReg` and `CKT.kernel`.
+
+
+## Bug fixes
+
+* In `simpA.NP` and `simpA.param`, the parameter `truncVal` used to have no
+effect (contrary to what was written in the documentation). It is now taken into
+account. Also it is now checked that this parameter belongs to the interval
+`[0, 1/2)` so that the integration interval is not empty.
+
+* In `simpA.NP` and `simpA.param`, the weights involved in the Gaussian
+quadrature have been fixed to correspond to the correct integration interval.
+
+* Fix a bug in `simpA.NP` for computation of the integration-based test
+statistics `T1_CvM_Cs3`, `T1_CvM_Cs4`, `tilde_T0_CvM`, which were incorrect of a
+constant factor. P-values were unaffected by this bug, as the constant factor
+was also present in the bootstrap test statistic.
+
+* Some errors occurring in `CKT.kernel` with a multivariate `Z` and small
+bandwidth have been fixed.
+
+* Fix bug in computation of the standard errors in `simpA.kendallReg`. This
+affected also the corresponding p-values of each estimated coefficients
+(but not the p-value of the Wald-type test which are computed in another way).
+
+
+# CondCopulas 0.1.4.1
+
+* Fix CRAN `NOTE`: 
+  * Found the following (possibly) invalid URLs:
+  
+      URL: https://arxiv.org/pdf/2204.03285.pdf (moved to http://arxiv.org/pdf/2204.03285)
+        From: README.md
+        Status: 301
+        Message: Moved Permanently
+    For content that is 'Moved Permanently', please change http to https,
+    add trailing slashes, or replace the old by the new URL.
+
+
 # CondCopulas 0.1.4
 
 * Argument names have been shortened: functions taking arguments of the form
@@ -29,11 +102,13 @@ the progress bar to show the progress of the computation.
 This package was already suggested by `data.tree` (which is imported).
 
 * Fix CRAN `NOTE`: 
-  * Found the following Rd file(s) with Rd \link{} targets missing package
-    anchors:
+  * Found the following Rd file(s) with Rd \link{} targets missing package anchors:
+  
       estimateParCondCopula.Rd: VineCopula
+	  
     Please provide package anchors for all Rd \link{} targets not in the
     package itself and the base packages.
+
 
 # CondCopulas 0.1.3
 

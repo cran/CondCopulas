@@ -64,6 +64,11 @@
 #' @param truncVal the value of truncation for the integral,
 #' i.e. the integrals are computed from \code{truncVal} to \code{1-truncVal}
 #' instead of from 0 to 1.
+#' Note that \code{truncVal} must be in the interval \eqn{[0, 0.5)},
+#' i.e. \eqn{0} is allowed but not \eqn{0.5}.
+#'
+#' The default is \code{truncVal = NULL}, which actually means that
+#' \code{truncVal = h} if \code{h < 0.5} and \code{truncVal = 0} else.
 #'
 #' @param numericalInt parameters to be given to
 #' \code{statmod::\link[statmod]{gauss.quad}}, including the number of
@@ -99,6 +104,8 @@
 #'   \code{\link{bCond.simpA.param}}
 #'   (test assuming a parametric form for the conditional copula)
 #' }
+#' The non-parametric measures of non-simplifyingness
+#' \code{\link{measures_nonsimplifyingness_NP}}.
 #'
 #' @examples
 #' # We simulate from a conditional copula
@@ -141,21 +148,37 @@
 simpA.NP <- function(
   X1, X2, X3, testStat, typeBoot = "bootNP", h,
   nBootstrap = 100,
-  kernel.name = "Epanechnikov", truncVal = h,
+  kernel.name = "Epanechnikov", truncVal = NULL,
   numericalInt = list(kind = "legendre", nGrid = 10))
 {
   .checkSame_nobs_X1X2X3(X1, X2, X3)
   .checkUnivX1X2X3(X1, X2, X3)
 
+  if (is.null(truncVal)){
+    if (h < 0.5){
+      truncVal = h
+    } else {
+      truncVal = 0
+    }
+  } else {
+    if (truncVal < 0 || truncVal >= 0.5){
+      stop(errorCondition(
+        message = paste0("'truncVal' must be in the interval [0, 0.5). ",
+                         "Here it is: ", truncVal),
+        class = "InvalidInputError"
+      ))
+    }
+  }
+
   n <- length(X1)
 
   if (testStat %in% c("T1_CvM_Cs3", "T1_CvM_Cs4", "tilde_T0_CvM",
-                      "T1_KS_Cs3", "T1_KS_Cs4", "tilde_T0_KS")){
+                      "T1_KS_Cs3", "T1_KS_Cs4", "tilde_T0_KS", "I_2n")){
+
     nGrid = numericalInt$nGrid
-    grid <- statmod::gauss.quad(n = nGrid, kind = numericalInt$kind)
-    # Change of range to be on [0,1]
-    grid$nodes <- grid$nodes * (1/2 - h) + 1/2
-    grid$weights <- grid$weights / 2
+    # grid on [truncVal , 1 - truncVal]
+    grid <- get.gauss.quad(nGrid = nGrid, kind = numericalInt$kind,
+                           center = 1/2, half_length = (1/2 - truncVal))
   }
 
   if (testStat %in% c("T1_CvM_Cs3", "T1_CvM_Cs4", "tilde_T0_CvM",
